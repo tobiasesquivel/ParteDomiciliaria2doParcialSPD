@@ -1,0 +1,188 @@
+//Includes
+#include <LiquidCrystal.h>
+#include <Servo.h>
+#include <IRremote.h>
+
+float tomarTemperatura(int pinSensorTemperatura);
+void mostrarTemperatura(LiquidCrystal lcd, float temperatura, char inicialEstacion,bool hayIncendio);
+bool detectarIncendio(float temperatura);
+void activarServoIncendio(bool hayIncendio,Servo myservo,int angulo);
+char obtenerEstacion(int temperatura);
+void interactuarLeds(bool estadoSistema,int pinVerde, int pinRojo);
+/*bool alternarEstadoSistema(bool estadoSistema);*/
+
+// Defines
+
+
+	//Leds
+#define PIN_LED_VERDE 13
+#define PIN_LED_ROJO 12
+	//Sensor temperatura
+#define PIN_SENSOR_TEMPERATURA A0
+	//Servo
+#define PIN_SERVO 9
+	//Control remoto
+#define PIN_REMOTO 11
+
+
+
+
+// Variables
+
+	//LCD
+LiquidCrystal lcd(2,3,4,5,6,7);
+
+	// Servo
+Servo myServo;
+
+	//Sensor temperatura
+float temperaturaNueva = 0;
+float temperaturaFinal = 0;
+
+
+	//Estaciones
+char estacionActual;
+
+
+	//Incendio
+bool hayIncendio = false;
+
+	//Sistema activado
+bool sistemaActivado = false;
+
+	//Control remoto
+IRrecv control(PIN_REMOTO);
+void setup()
+{
+  pinMode(PIN_LED_ROJO, OUTPUT);
+  pinMode(PIN_LED_VERDE, OUTPUT);
+  lcd.begin(16,2);
+  myServo.attach(PIN_SERVO);
+  IrReceiver.begin(PIN_REMOTO, DISABLE_LED_FEEDBACK);
+  Serial.begin(9600);
+}
+
+void loop()
+{
+  interactuarLeds(sistemaActivado,PIN_LED_VERDE,PIN_LED_ROJO);
+  if (IrReceiver.decode())
+  {   
+    switch (IrReceiver.decodedIRData.decodedRawData)
+    {
+      case 0xEF10BF00:
+      sistemaActivado = !sistemaActivado;
+      	break;
+    }
+      
+    control.resume();
+  }
+  if (sistemaActivado)
+  {
+    temperaturaNueva = tomarTemperatura(PIN_SENSOR_TEMPERATURA);
+    hayIncendio = detectarIncendio(temperaturaNueva);
+
+
+      // Mostrar temperatura
+    if (temperaturaNueva != temperaturaFinal){
+      temperaturaFinal = temperaturaNueva;
+      estacionActual = obtenerEstacion(temperaturaFinal);
+      mostrarTemperatura(lcd, temperaturaFinal,estacionActual,hayIncendio);
+    }
+
+    activarServoIncendio(hayIncendio,myServo,110);
+  }
+  else{
+    lcd.clear();
+  }
+  
+    
+}
+// Fin del loop
+
+
+float tomarTemperatura(int pinSensorTemperatura){
+  float temperaturaNueva = (map(analogRead(PIN_SENSOR_TEMPERATURA),0, 1023, -50,450))+1;
+  return temperaturaNueva;
+}
+
+
+void mostrarTemperatura(LiquidCrystal lcd, float temperatura, char inicialEstacion,bool hayIncendio){
+  char estaciones[] = {'v','o','i','p'};
+  lcd.clear();
+  if (!hayIncendio){
+    
+
+    lcd.setCursor(0,0);
+    lcd.print(temperatura);
+    lcd.print("*C");
+    lcd.setCursor(0,1);
+    switch(inicialEstacion)
+    {
+      case 'v':
+          lcd.print("Verano");
+          break;
+      case 'o':
+          lcd.print("Otonio");
+          break;
+      case 'i':
+          lcd.print("Invierno");
+          break;
+      case 'p':
+          lcd.print("Primavera");
+          break;
+    }
+  }
+  else{
+    lcd.print("Incendio");
+  }
+}
+
+bool detectarIncendio(float temperatura){
+  if(temperatura >= 60){
+    return true;
+  }
+     return false;
+}
+
+void activarServoIncendio(bool hayIncendio,Servo myservo,int angulo){
+    if (hayIncendio)
+  {
+    myServo.write(angulo);
+  }
+  else{
+    myServo.write(0);
+  }
+}
+
+char obtenerEstacion(int temperatura){
+  if (temperatura > 35 && temperatura)
+  {
+    return 'v';
+  }
+  else if( temperatura > 25)
+  {
+    return 'p';
+  }
+  else if( temperatura > 15)
+  {
+    return 'o';
+  }
+  return 'i';
+}
+
+void interactuarLeds(bool estadoSistema,int pinVerde, int pinRojo)
+{
+ if(estadoSistema)
+ {
+   digitalWrite(pinVerde, HIGH);
+   digitalWrite(pinRojo, LOW);
+ }
+  else
+  {
+    digitalWrite(pinVerde, LOW);
+   digitalWrite(pinRojo, HIGH);
+  }
+    
+}
+
+
